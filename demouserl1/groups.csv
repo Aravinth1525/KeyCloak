@@ -1,0 +1,12 @@
+group_name,group_path
+CM_Manager,/CM_Manager
+HDM_ActionManager,/HDM_ActionManager
+HDM_AlarmManager,/HDM_AlarmManager
+HDM_CPEs,/HDM_CPEs
+HDM_CustomfunctionManager,/HDM_CustomfunctionManager
+HDM_DeviceManager,/HDM_DeviceManager
+HDM_DeviceParameterManager,/HDM_DeviceParameterManager
+HDM_FileServerManager,/HDM_FileServerManager
+HDM_FirmwareManager,/HDM_FirmwareManager
+HDM_PolicyManager,/HDM_PolicyManager
+HDM_SingleDeviceManager,/HDM_SingleDeviceManager
