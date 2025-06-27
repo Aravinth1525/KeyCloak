@@ -9,16 +9,13 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
-
-
-
-
-
+# Conditional proxy configuration
+USE_PROXY = os.getenv("USE_INTERNAL_PROXY", "false").lower() == "true"
+PROXY = "http://10.158.100.6:8080"
 PROXIES = {
-        "http": os.getenv("HTTP_PROXY"),
-        "https": os.getenv("HTTPS_PROXY")
-    }
-
+    "http": PROXY,
+    "https": PROXY
+} if USE_PROXY else {}
 
 @app.route('/', methods=['GET', 'POST'])
 def create_user():
@@ -61,6 +58,7 @@ def create_user():
 
     return render_template('form.html')
 
+
 def get_access_token(username, password, realm):
     token_url = f"https://auth.stg.homewifi.nokia.com/sso/realms/{realm}/protocol/openid-connect/token"
     payload = {
@@ -76,6 +74,7 @@ def get_access_token(username, password, realm):
     else:
         print("❌ Failed to retrieve token:", response.status_code, response.text)
         return None
+
 
 def create_keycloak_user(username, email, first_name, password, email_verified, kc_username, kc_password, realm, CSV_FOLDER):
     token = get_access_token(kc_username, kc_password, realm)
@@ -159,6 +158,7 @@ def create_keycloak_user(username, email, first_name, password, email_verified, 
         return {"error": "User with same email or username already exists."}
     else:
         return {"error": f"Failed to create user. Code: {create_resp.status_code}, {create_resp.text}"}
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
