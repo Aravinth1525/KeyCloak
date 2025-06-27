@@ -10,6 +10,11 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
 
+port = int(os.environ.get("PORT", 5000))
+app.run(host="0.0.0.0", port=port, debug=True)
+
+
+
 # Only use proxy if explicitly set (e.g. on local machine)
 PROXIES = {}
 if os.getenv("USE_PROXY", "false").lower() == "true":
