@@ -14,10 +14,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
 
 
-# Only use proxy if explicitly set (e.g. on local machine)
-PROXIES = {}
-if os.getenv("USE_PROXY", "false").lower() == "true":
-    PROXIES = {
+PROXIES = {
         "http": os.getenv("HTTP_PROXY"),
         "https": os.getenv("HTTPS_PROXY")
     }
