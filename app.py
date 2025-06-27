@@ -4,12 +4,17 @@ import os
 import csv
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
-# Conditional proxy configuration
+# Remove proxy env vars if set globally (force bypass on Render)
+os.environ.pop("HTTP_PROXY", None)
+os.environ.pop("HTTPS_PROXY", None)
+
+# Decide whether to use proxy based on env var
 USE_PROXY = os.getenv("USE_INTERNAL_PROXY", "false").lower() == "true"
 PROXY = "http://10.158.100.6:8080"
 PROXIES = {
@@ -58,7 +63,6 @@ def create_user():
 
     return render_template('form.html')
 
-
 def get_access_token(username, password, realm):
     token_url = f"https://auth.stg.homewifi.nokia.com/sso/realms/{realm}/protocol/openid-connect/token"
     payload = {
@@ -68,13 +72,14 @@ def get_access_token(username, password, realm):
         'password': password
     }
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    response = requests.post(token_url, data=payload, headers=headers, proxies=PROXIES, timeout=10)
-    if response.status_code == 200:
-        return response.json().get('access_token')
-    else:
-        print("❌ Failed to retrieve token:", response.status_code, response.text)
-        return None
 
+    try:
+        response = requests.post(token_url, data=payload, headers=headers, proxies=PROXIES, timeout=10)
+        response.raise_for_status()
+        return response.json().get('access_token')
+    except requests.exceptions.RequestException as e:
+        print("❌ Token request failed:", e)
+        return None
 
 def create_keycloak_user(username, email, first_name, password, email_verified, kc_username, kc_password, realm, CSV_FOLDER):
     token = get_access_token(kc_username, kc_password, realm)
@@ -97,49 +102,48 @@ def create_keycloak_user(username, email, first_name, password, email_verified, 
         'attributes': {'locale': 'en'}
     }
 
-    create_resp = requests.post(user_url, json=payload, headers=headers, proxies=PROXIES, timeout=10)
-    if create_resp.status_code == 201:
-        lookup_resp = requests.get(user_url + f"?username={username}", headers=headers, proxies=PROXIES, timeout=10)
-        if lookup_resp.status_code == 200 and lookup_resp.json():
-            user_id = lookup_resp.json()[0]['id']
+    try:
+        create_resp = requests.post(user_url, json=payload, headers=headers, proxies=PROXIES, timeout=10)
+        if create_resp.status_code == 201:
+            lookup_resp = requests.get(user_url + f"?username={username}", headers=headers, proxies=PROXIES, timeout=10)
+            if lookup_resp.status_code == 200 and lookup_resp.json():
+                user_id = lookup_resp.json()[0]['id']
 
-            pwd_url = f"{user_url}/{user_id}/reset-password"
-            pwd_payload = {
-                'type': 'password',
-                'value': password,
-                'temporary': False
-            }
-            pwd_resp = requests.put(pwd_url, json=pwd_payload, headers=headers, proxies=PROXIES, timeout=10)
-            if pwd_resp.status_code != 204:
-                return {"error": f"Password set failed. Code: {pwd_resp.status_code}"}
+                # Set password
+                pwd_url = f"{user_url}/{user_id}/reset-password"
+                pwd_payload = {
+                    'type': 'password',
+                    'value': password,
+                    'temporary': False
+                }
+                pwd_resp = requests.put(pwd_url, json=pwd_payload, headers=headers, proxies=PROXIES, timeout=10)
+                if pwd_resp.status_code != 204:
+                    return {"error": f"Password set failed. Code: {pwd_resp.status_code}"}
 
-            # Assign Groups
-            group_list = ['/everyone']
-            try:
-                with open(os.path.join(CSV_FOLDER, 'groups.csv'), 'r') as f:
-                    reader = csv.reader(f)
-                    for row in reader:
-                        if row:
-                            group_list.append(f"/{row[0].strip()}")
-            except:
-                print("No groups.csv found")
+                # Assign groups
+                group_list = ['/everyone']
+                try:
+                    with open(os.path.join(CSV_FOLDER, 'groups.csv'), 'r') as f:
+                        for row in csv.reader(f):
+                            if row:
+                                group_list.append(f"/{row[0].strip()}")
+                except:
+                    print("No groups.csv found")
 
-            group_resp = requests.get(f"{base_url}/groups", headers=headers, proxies=PROXIES, timeout=10)
-            if group_resp.status_code == 200:
-                all_groups = group_resp.json()
-                for group_path in group_list:
-                    group_obj = next((g for g in all_groups if g["path"] == group_path), None)
-                    if group_obj:
-                        assign_url = f"{user_url}/{user_id}/groups/{group_obj['id']}"
-                        requests.put(assign_url, headers=headers, proxies=PROXIES, timeout=10)
+                group_resp = requests.get(f"{base_url}/groups", headers=headers, proxies=PROXIES, timeout=10)
+                if group_resp.status_code == 200:
+                    for group_path in group_list:
+                        group_obj = next((g for g in group_resp.json() if g["path"] == group_path), None)
+                        if group_obj:
+                            assign_url = f"{user_url}/{user_id}/groups/{group_obj['id']}"
+                            requests.put(assign_url, headers=headers, proxies=PROXIES, timeout=10)
 
-            # Assign Realm Roles
-            try:
-                with open(os.path.join(CSV_FOLDER, 'realm_roles.csv'), 'r') as f:
-                    roles = [row[0].strip() for row in csv.reader(f) if row]
-                if roles:
-                    role_resp = requests.get(f"{base_url}/roles", headers=headers, proxies=PROXIES, timeout=10)
-                    if role_resp.status_code == 200:
+                # Assign realm roles
+                try:
+                    with open(os.path.join(CSV_FOLDER, 'realm_roles.csv'), 'r') as f:
+                        roles = [row[0].strip() for row in csv.reader(f) if row]
+                    if roles:
+                        role_resp = requests.get(f"{base_url}/roles", headers=headers, proxies=PROXIES, timeout=10)
                         available_roles = role_resp.json()
                         matched_roles = [r for r in available_roles if r['name'] in roles]
                         assign_url = f"{user_url}/{user_id}/role-mappings/realm"
@@ -147,18 +151,19 @@ def create_keycloak_user(username, email, first_name, password, email_verified, 
                         if matched_roles:
                             assign_resp = requests.post(assign_url, json=matched_roles, headers=headers, proxies=PROXIES, timeout=10)
                             if assign_resp.status_code != 204:
-                                return {"error": f"Realm Role assign failed. Code: {assign_resp.status_code}, {assign_resp.text}"}
-            except:
-                print("No realm_roles.csv found")
+                                return {"error": f"Role assignment failed: {assign_resp.text}"}
+                except:
+                    print("No realm_roles.csv found")
 
-            return user_id
+                return user_id
+            else:
+                return {"error": "User created but lookup failed."}
+        elif create_resp.status_code == 409:
+            return {"error": "User already exists."}
         else:
-            return {"error": "User created but lookup failed."}
-    elif create_resp.status_code == 409:
-        return {"error": "User with same email or username already exists."}
-    else:
-        return {"error": f"Failed to create user. Code: {create_resp.status_code}, {create_resp.text}"}
-
+            return {"error": f"User creation failed. Code: {create_resp.status_code}, {create_resp.text}"}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Request error: {e}"}
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
