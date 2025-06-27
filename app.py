@@ -10,8 +10,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
 
-port = int(os.environ.get("PORT", 5000))
-app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
@@ -165,4 +164,5 @@ def create_keycloak_user(username, email, first_name, password, email_verified, 
         return {"error": f"Failed to create user. Code: {create_resp.status_code}, {create_resp.text}"}
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
