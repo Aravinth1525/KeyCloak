@@ -140,7 +140,7 @@ def create_keycloak_user(username, email, first_name, password, email_verified, 
 
                 # Assign realm roles
                 try:
-                    with open(os.path.join(CSV_FOLDER, 'realm_roles.csv'), 'r') as f:
+                    with open(os.path.join(CSV_FOLDER, 'roles.csv'), 'r') as f:
                         roles = [row[0].strip() for row in csv.reader(f) if row]
                     if roles:
                         role_resp = requests.get(f"{base_url}/roles", headers=headers, proxies=PROXIES, timeout=10)
