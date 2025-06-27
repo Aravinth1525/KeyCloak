@@ -9,10 +9,15 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
-PROXIES = {
-    "http": os.getenv("HTTP_PROXY"),
-    "https": os.getenv("HTTPS_PROXY")
-}
+
+# Only use proxy if explicitly set (e.g. on local machine)
+PROXIES = {}
+if os.getenv("USE_PROXY", "false").lower() == "true":
+    PROXIES = {
+        "http": os.getenv("HTTP_PROXY"),
+        "https": os.getenv("HTTPS_PROXY")
+    }
+
 
 @app.route('/', methods=['GET', 'POST'])
 def create_user():
