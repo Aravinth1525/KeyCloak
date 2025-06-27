@@ -10,19 +10,17 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret')
 
-# Remove any globally set proxy environment variables (for Render safety)
+# Remove proxy env vars if set globally (force bypass on Render)
 os.environ.pop("HTTP_PROXY", None)
 os.environ.pop("HTTPS_PROXY", None)
 
-# Controlled proxy loading
+# Decide whether to use proxy based on env var
 USE_PROXY = os.getenv("USE_INTERNAL_PROXY", "false").lower() == "true"
-HTTP_PROXY = os.getenv("INTERNAL_HTTP_PROXY")
-HTTPS_PROXY = os.getenv("INTERNAL_HTTPS_PROXY")
-
+PROXY = os.getenv("aravinth_proxy")
 PROXIES = {
-    "http": HTTP_PROXY,
-    "https": HTTPS_PROXY
-} if USE_PROXY and HTTP_PROXY and HTTPS_PROXY else {}
+    "http": PROXY,
+    "https": PROXY
+} if USE_PROXY else {}
 
 @app.route('/', methods=['GET', 'POST'])
 def create_user():
